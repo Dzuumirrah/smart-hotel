@@ -1,18 +1,16 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+// Pilih project yang mau di-compile
+// #define PROJECT_HILMAN
+// #define PROJECT_MERLIN
+#define PROJECT_GALIH
+// #define PROJECT_FARREL
+// #define PROJECT_UNKNOWN
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  
 }
