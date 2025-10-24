@@ -14,8 +14,14 @@
 #elif defined(PROJECT_FARREL)
 #include "project-farrel.h"
 
+// --- ADD YOUR PROJECT HERE ---
+#elif defined(PROJECT_FAZLA)
+#include "project-fazla.h" // Include your new project file
+// --- END OF YOUR ADDITION ---
+
 #else
-#error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, or PROJECT_FARREL."
+#error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, PROJECT_FARREL, or PROJECT_FAZLA."
 
+#endif // This closes the #if defined(...) block
 
-#endif
+#endif // This closes the #ifndef PROJECT_CONTROL_H
