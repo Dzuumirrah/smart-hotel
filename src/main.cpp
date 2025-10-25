@@ -1,35 +1,30 @@
 #include <Arduino.h>
 #include "project-control.h" // Include the main project controller
 
-// Pilih project yang mau di-compile
-// The project is now selected in platformio.ini using "build_flags"
-// for the chosen environment.
-
-// The project-control.h file will now include your project-fazla.h,
-// which contains your setup_fazla() and loop_fazla() functions.
-
 void setup() {
-  // Call the setup function for the selected project
-  #if defined(PROJECT_FAZLA)
+  #if defined(PROJECT_DIPTA)
+    setup_dipta();
+  #elif defined(PROJECT_FAZLA)
     setup_fazla();
   #elif defined(PROJECT_HILMAN)
-    // setup_hilman(); // (Assuming this is the pattern)
+    setup_hilman();
   #elif defined(PROJECT_GALIH)
-    // setup_galih();
+    setup_galih();
   #else
     Serial.begin(115200);
-    Serial.println("No project selected in main.cpp!");
+    Serial.println("No project selected!");
   #endif
 }
 
 void loop() {
-  // Call the loop function for the selected project
-  #if defined(PROJECT_FAZLA)
+  #if defined(PROJECT_DIPTA)
+    loop_dipta();
+  #elif defined(PROJECT_FAZLA)
     loop_fazla();
   #elif defined(PROJECT_HILMAN)
-    // loop_hilman();
+    loop_hilman();
   #elif defined(PROJECT_GALIH)
-    // loop_galih();
+    loop_galih();
   #else
     delay(1000);
   #endif

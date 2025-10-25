@@ -14,6 +14,9 @@
 #elif defined(PROJECT_FARREL)
 #include "project-farrel.h"
 
+#elif defined(PROJECT_DIPTA)
+#include "project-dipta.h"
+
 // --- ADD YOUR PROJECT HERE ---
 #elif defined(PROJECT_FAZLA)
 #include "project-fazla.h" // Include your new project file
