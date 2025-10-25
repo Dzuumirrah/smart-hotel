@@ -17,5 +17,4 @@
 #else
 #error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, or PROJECT_FARREL."
 
-
 #endif
