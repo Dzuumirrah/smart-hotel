@@ -13,9 +13,11 @@ void setup() {
   #if defined(PROJECT_FAZLA)
     setup_fazla();
   #elif defined(PROJECT_HILMAN)
-    // setup_hilman(); // (Assuming this is the pattern)
+     setup_hilman(); // (Assuming this is the pattern)
   #elif defined(PROJECT_GALIH)
-    // setup_galih();
+    setup_galih();
+  #elif defined(PROJECT_MERLIN)
+    setup_merlin();
   #else
     Serial.begin(115200);
     Serial.println("No project selected in main.cpp!");
@@ -27,9 +29,11 @@ void loop() {
   #if defined(PROJECT_FAZLA)
     loop_fazla();
   #elif defined(PROJECT_HILMAN)
-    // loop_hilman();
+    loop_hilman();
   #elif defined(PROJECT_GALIH)
-    // loop_galih();
+    loop_galih();
+  #elif defined(PROJECT_MERLIN)
+    loop_merlin();
   #else
     delay(1000);
   #endif
