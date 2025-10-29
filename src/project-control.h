@@ -6,17 +6,17 @@
 #include "control.cpp"
 
 #elif defined(PROJECT_MERLIN)
-#include "project-merlin.h"
+#include "projectMerlin/project-merlin.h"
 
 #elif defined(PROJECT_GALIH)
 #include "project-galih.h"
 
 #elif defined(PROJECT_FARREL)
-#include "project-farrel.h"
+#include "projectFarrel/project-farrel.h"
 
 // --- ADD YOUR PROJECT HERE ---
 #elif defined(PROJECT_FAZLA)
-#include "project-fazla.h" // Include your new project file
+#include "projectFazla/project-fazla.h" // Include your new project file
 // --- END OF YOUR ADDITION ---
 
 #else
