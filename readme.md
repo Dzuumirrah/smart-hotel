@@ -1,7 +1,5 @@
 # smart-hotel
 
-# smart-hotel
-
 smart-hotel/
 │
 ├── src/
