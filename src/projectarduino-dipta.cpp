@@ -79,4 +79,4 @@ void loop_dipta() {
   delay(1000);
 }
 
-#endif   // <---- Tutup di paling bawah
+#endif
