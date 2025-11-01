@@ -1,10 +1,10 @@
-#ifdef ARDUINO_ARCH_AVR   // <---- Tambahkan ini di paling atas
+#ifdef ARDUINO_ARCH_AVR   
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Inisialisasi LCD (alamat I2C bisa 0x27 atau 0x3F tergantung modul)
+// Inisialisasi LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Konfigurasi pin sensor ultrasonik
