@@ -8,12 +8,12 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Konfigurasi pin sensor ultrasonik
-#define trig1 2
-#define echo1 3
-#define trig2 4
-#define echo2 5
-#define trig3 6
-#define echo3 7
+#define trig1 4
+#define echo1 5
+#define trig2 6
+#define echo2 8
+#define trig3 9
+#define echo3 12
 
 int jarak1, jarak2, jarak3;
 int slotPenuh = 0;
