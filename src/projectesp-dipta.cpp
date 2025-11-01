@@ -6,12 +6,12 @@
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-#define trig1 5
-#define echo1 18
-#define trig2 17
-#define echo2 16
-#define trig3 4
-#define echo3 15
+#define trig1 17
+#define echo1 16
+#define trig2 27
+#define echo2 13
+#define trig3 15
+#define echo3 35
 
 int jarak1, jarak2, jarak3;
 int slotPenuh = 0;
