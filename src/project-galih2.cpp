@@ -2,13 +2,25 @@
 
 void setupProjectGalih2() {
   Serial.begin(SERIAL_BAUD);
-  pinMode(MOTOR_DIR_PIN, OUTPUT);
-  pinMode(MOTOR_PWM_PIN, OUTPUT);
-  pinMode(PIR_PIN, INPUT);
-  
-  // inisialisasi sensor BH1750 misalnya
+  initMotor(MOTOR_DIR_PIN, MOTOR_PWM_PIN);
+  initSensorPIR(PIR_PIN);
+  initSensorBH1750(SENSOR_BH1750_SDA, SENSOR_BH1750_SCL);
+
+  Serial.println("Project Galih 2 initialized.");
 }
 
 void loopProjectGalih2() {
-  // logika utama loop
+  bool motion = readSensorPIR();
+  float lux = readLightLevel();
+
+  Serial.print("PIR: "); Serial.print(motion);
+  Serial.print(" | Light: "); Serial.println(lux);
+
+  if (motion && lux < 100) {
+    openCurtain();  // misal motor buka gorden
+  } else {
+    closeCurtain(); // atau stopCurtain();
+  }
+
+  delay(500);
 }

@@ -13,9 +13,11 @@
 #define MOTOR_DIR_PIN 5
 #define MOTOR_PWM_PIN 6
 
-// Pin Sensor (contoh)
+// Pin Sensor
 #define PIR_PIN 7
 #define BH1750_ADDR 0x23
+#define SENSOR_BH1750_SDA A4
+#define SENSOR_BH1750_SCL A5
 
 // =========================
 // Fungsi setup dan loop
