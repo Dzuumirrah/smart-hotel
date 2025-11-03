@@ -14,10 +14,13 @@
 #elif defined(PROJECT_FARREL)
 #include "projectFarrel/project-farrel.h"
 
-// --- ADD YOUR PROJECT HERE ---
+
 #elif defined(PROJECT_FAZLA)
-#include "projectFazla/project-fazla.h" // Include your new project file
-// --- END OF YOUR ADDITION ---
+#include "projectFazla/project-fazla.h"
+
+#elif defined(PROJECT_DIPTA)
+#include "projectDipta/project-dipta.h"
+
 
 #else
 #error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, PROJECT_FARREL, or PROJECT_FAZLA."
