@@ -20,6 +20,8 @@ void setup() {
     setup_merlin();
   #elif defined(PROJECT_DIPTA)
     setup_dipta();
+  #elif defined(PROJECT_GALIH)
+    setup_galih();
   #else
     Serial.begin(115200);
     Serial.println("No project selected in main.cpp!");
@@ -38,6 +40,8 @@ void loop() {
     loop_merlin();
   #elif defined(PROJECT_DIPTA)
     loop_dipta();
+  #elif defined(PROJECT_GALIH)
+    loop_galih();
   #else
     delay(1000);
   #endif

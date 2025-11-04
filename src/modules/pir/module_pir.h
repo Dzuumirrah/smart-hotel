@@ -1,7 +1,5 @@
 #pragma once
+#include <Arduino.h>
 
-void initSensorPIR(int pin) {
-  #if USE_SENSOR_PIR
-    pinMode(pin, INPUT);
-  #endif
-}
+void initSensorPIR(uint8_t pin);
+bool readSensorPIR();
