@@ -9,7 +9,7 @@
 #include "projectMerlin/project-merlin.h"
 
 #elif defined(PROJECT_GALIH)
-#include "project-galih.h"
+#include "projectGalih/project-galih.h"
 
 #elif defined(PROJECT_FARREL)
 #include "projectFarrel/project-farrel.h"
