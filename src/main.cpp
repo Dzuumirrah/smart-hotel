@@ -3,8 +3,8 @@
 // Pilih project yang mau di-compile
 // #define PROJECT_HILMAN
 // #define PROJECT_MERLIN
-// #define PROJECT_GALIH
-#define PROJECT_GALIH2
+#define PROJECT_GALIH
+// #define PROJECT_GALIH2
 // #define PROJECT_FARREL
 // #define PROJECT_UNKNOWN
 
