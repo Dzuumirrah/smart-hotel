@@ -1,8 +1,12 @@
-
 #include "customer-door.h"
 
-MFRC522 rfid(SS_PIN, RST_PIN);
+MFRC522 rfid(SS_PIN_RFID, RST_PIN_RFID);
 HTTPClient http;
+
+#if defined(ARDUINO_ARCH_ESP32)
+  SoftwareSerial fpSerial(FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
+#endif
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fpSerial);
 
 // Flag untuk menandakan apakah sudah terhubung ke WiFi
 bool reconnected = true;
@@ -13,6 +17,155 @@ bool RECORDMODE = false;
 
 // URL untuk cek akses. URL adalah script makro spreadsheet Google Apps Script yang sudah di-deploy sebagai web app.
 const char* SERVER_URL = "https://script.google.com/macros/library/d/1BxkSqYyzzPTK_-Hk4rBHUh4t_EVHeCRiuYLa52Xx3Y0suTrfJzpXVgbB/1";
+
+// flag untuk meminta password pada saat pertama kali mode perekaman aktif
+bool NEEDPASS = true;
+// flag status akses diterima
+bool aksesDiterima = false;
+
+
+void setup_hilman() {
+    // Inisialisasi khusus untuk project Hilman
+    Serial.begin(115200);
+    Serial.println("Projek Pengaman Pintu dengan Fingerprint, RFID, dan Keypad");
+    #ifdef USE_WIFI_ESP8266
+        SoftwareSerial WifiSerial(ESP8266_RX_PIN, ESP8266_TX_PIN);
+    #endif
+    SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN);
+    // Inisialisasi RFID
+    rfid.PCD_Init();
+
+    // Inisialisasi sensor fingerprint
+    fpSerial.begin(57600);
+    if (finger.verifyPassword()) {
+        Serial.println("Found fingerprint sensor!");
+    } else {
+        Serial.println("Did not find fingerprint sensor :(");
+    }
+
+    // RGB LED initialization disabled due to hardware unavailability
+    // pinMode(RGB_LED_R, OUTPUT);
+    // pinMode(RGB_LED_G, OUTPUT);
+    // pinMode(RGB_LED_B, OUTPUT);
+
+    //  inisialisasi pin kunci selenoid
+    pinMode(SELENOID_PIN, OUTPUT);
+    // IndikatorLEDRGB(false, LEDColor::WHITE); // Matikan indikator LED RGB - Disabled
+}
+
+void loop_hilman() {
+  digitalWrite(SELENOID_PIN, LOW); // Pastikan selenoid dalam keadaan mati
+
+  // Cek koneksi WiFi
+  if (!cekKoneksiWiFi()) {
+    Serial.println("WiFi tidak terhubung. Mengulang koneksi...");
+    delay(3000);
+    // IndikatorLEDRGB(true, LEDColor::RED); // Indikator merah untuk koneksi gagal - Disabled  
+    return;
+  }
+  // IndikatorLEDRGB(true, LEDColor::WHITE); // Disabled
+  
+  // Meminta password jika mode perekaman aktif dan pertama kali
+  if (RECORDMODE && NEEDPASS) {
+    Serial.println("Mode Perekaman Data Aktif. Silakan masukkan password untuk memulai perekaman.");
+    String password = Serial.readStringUntil('\n');
+    // Remove any whitespace
+    password.trim();
+    
+    // Using constant-time comparison for security
+    bool passwordCorrect = true;
+    const char* correct = "admin123";
+    if (password.length() != strlen(correct)) {
+      passwordCorrect = false;
+    } else {
+      for (size_t i = 0; i < password.length(); i++) {
+        if (password[i] != correct[i]) {
+          passwordCorrect = false;
+        }
+      }
+    }
+
+    if (passwordCorrect) {
+      Serial.println("Password benar. Silakan tempelkan RFID atau letakkan jari pada sensor fingerprint untuk perekaman.");
+    } else {
+      Serial.println("Password salah.");
+      delay(3000); // Delay to prevent brute force
+      return;
+    }
+  }
+  //Ambil data RFID
+  String UID = BacaRFID();
+  String fingerprint = BacaFingerprint();
+  
+
+  if (UID != "") {  // Jika data RFID terbaca
+    Serial.print("Data RFID Terbaca: ");
+    Serial.println(UID);
+    // IndikatorLEDRGB(true, LEDColor::BLUE); // Indikator biru untuk RFID terbaca - Disabled
+    
+    // Kondisi perekaman data
+    if (RECORDMODE) {
+      SimpanData("", UID);
+      Serial.println("Data RFID telah disimpan.");
+      Serial.println("Ingin merekam data lagi? (y/n)");
+      // IndikatorLEDRGB(true, LEDColor::YELLOW); // Matikan indikator LED RGB - Disabled
+      String response = Serial.readStringUntil('\n');
+      if (response != "y") {
+        RECORDMODE = false; // Matikan mode perekaman jika tidak ingin merekam lagi
+        NEEDPASS = true; // Reset flag password
+        return;
+      }
+      NEEDPASS = false;
+    }
+
+    // Kondisi verifikasi akses
+    Serial.print("Mencoba verifikasi akses...");
+    aksesDiterima = CekAkses("", UID);
+  } else if (fingerprint != "") { // Jika data fingerprint terbaca
+    Serial.print("Data Fingerprint Terbaca: ");
+    Serial.println(fingerprint);
+    // IndikatorLEDRGB(true, LEDColor::BLUE); // Indikator biru untuk fingerprint terbaca - Disabled
+
+    // Kondisi perekaman data
+    if (RECORDMODE) {
+      SimpanData(fingerprint, "");
+      Serial.println("Data Fingerprint telah disimpan.");
+      Serial.println("Ingin merekam data lagi? (y/n)");
+    //   IndikatorLEDRGB(true, LEDColor::YELLOW);
+      String response = Serial.readStringUntil('\n');
+      if (response != "y") {
+        RECORDMODE = false; // Matikan mode perekaman jika tidak ingin merekam lagi
+        NEEDPASS = true; // Reset flag password
+        return;
+      }
+      NEEDPASS = false;
+    }
+    // kondisi cek akses
+    // IndikatorLEDRGB(true, LEDColor::BLUE); // Matikan indikator LED RGB
+    Serial.print("Mencoba verifikasi akses...");
+    aksesDiterima =  CekAkses(fingerprint, "");
+  } else {  // Jika tidak ada data yang terbaca, program kembali ke awal loop
+    return;
+  }
+
+  // Penggerakan pintu saat akses diterima
+  if (aksesDiterima) {
+    Serial.println("Akses Diterima. Pintu Dibuka.");
+    // IndikatorLEDRGB(true, LEDColor::GREEN); // Indikator hijau untuk akses diterima - Disabled
+    // timeout pintu dibuka agar selenoida tidak terus menerus aktif
+    unsigned long startTimeout = millis();
+    while (!TimeoutAkses(startTimeout)) {
+      BukaPintu();
+    }
+
+  } else {
+    Serial.println("Akses Ditolak. Coba gunakan metode lain atau akses ke ruangan yang sesuai.");
+    // IndikatorLEDRGB(true, LEDColor::RED); // Indikator merah untuk akses ditolak - Disabled
+    delay(3000); // Tunda selama 3 detik untuk menampilkan status akses
+  }
+
+}
+
 
 bool cekKoneksiWiFi() {
     if (reconnected) {
@@ -39,7 +192,62 @@ bool cekKoneksiWiFi() {
 }
 
 String BacaFingerprint() {
+    uint8_t p = finger.getImage();
+    if (p != FINGERPRINT_OK) {
+        switch (p) {
+            case FINGERPRINT_NOFINGER:
+                // Silent fail - no finger present
+                break;
+            case FINGERPRINT_PACKETRECIEVEERR:
+                Serial.println("Komunikasi dengan sensor gagal");
+                break;
+            case FINGERPRINT_IMAGEFAIL:
+                Serial.println("Error mengambil gambar");
+                break;
+            default:
+                Serial.println("Error tidak dikenal");
+                break;
+        }
+        return String("");
+    }
+
+    p = finger.image2Tz();
+    if (p != FINGERPRINT_OK) {
+        switch (p) {
+            case FINGERPRINT_IMAGEMESS:
+                Serial.println("Gambar terlalu berantakan");
+                break;
+            case FINGERPRINT_PACKETRECIEVEERR:
+                Serial.println("Komunikasi dengan sensor gagal");
+                break;
+            case FINGERPRINT_FEATUREFAIL:
+                Serial.println("Tidak dapat menemukan fitur sidik jari");
+                break;
+            case FINGERPRINT_INVALIDIMAGE:
+                Serial.println("Gambar tidak valid");
+                break;
+            default:
+                Serial.println("Error tidak dikenal");
+                break;
+        }
+        return String("");
+    }
+
+    p = finger.fingerSearch();
+    if (p != FINGERPRINT_OK) {
+        if (p == FINGERPRINT_NOTFOUND) {
+            Serial.println("Sidik jari tidak terdaftar");
+        } else {
+            Serial.println("Error dalam pencarian sidik jari");
+        }
+        return String("");
+    }
+
+    // Found a match!
+    char fingerprintBuffer[8];  // Buffer untuk menyimpan ID dalam format hex
+    sprintf(fingerprintBuffer, "%04X", finger.fingerID);  // Konversi ID ke hex string
     
+    return String(fingerprintBuffer);
 }
 
 String BacaRFID() {
@@ -67,6 +275,11 @@ String BacaRFID() {
 }
 
 void SimpanData(String fingerprintData, String rfidData) {
+    if (fingerprintData.length() == 0 && rfidData.length() == 0) {
+        Serial.println("Error: Tidak ada data untuk disimpan");
+        return;
+    }
+
     String url = String(SERVER_URL) + "?room=" + String(roomNumber);
 
     if (fingerprintData.length() > 0) {
@@ -77,12 +290,14 @@ void SimpanData(String fingerprintData, String rfidData) {
     }
 
     http.begin(url);
+    http.setTimeout(10000); // 10 detik timeout
     http.addHeader("Content-Type", "application/json");
 
-    StaticJsonDocument <200> jsonDoc;
+    StaticJsonDocument<200> jsonDoc;
     jsonDoc["fingerprint"] = fingerprintData;
     jsonDoc["uid"] = rfidData;
     jsonDoc["room"] = roomNumber;
+    jsonDoc["timestamp"] = millis(); // Add timestamp for request tracking
 
     String body;
     serializeJson(jsonDoc, body);
@@ -91,39 +306,102 @@ void SimpanData(String fingerprintData, String rfidData) {
 
     if (httpResponseCode > 0) {
         String payload = http.getString();
-        Serial.print("Respons dari server: ");
-        Serial.println(payload);
+        if (payload.length() > 0) {
+            StaticJsonDocument<200> responseDoc;
+            DeserializationError error = deserializeJson(responseDoc, payload);
+            
+            if (!error) {
+                const char* status = responseDoc["status"];
+                const char* message = responseDoc["message"];
+                Serial.print("Status: ");
+                Serial.println(status);
+                Serial.print("Message: ");
+                Serial.println(message);
+            } else {
+                Serial.print("Response parsing failed: ");
+                Serial.println(error.c_str());
+            }
+        }
     } else {
         Serial.print("Request HTTP gagal: ");
         Serial.println(httpResponseCode);
+        Serial.println("Mencoba sekali lagi...");
+        
+        delay(1000);
+        httpResponseCode = http.POST(body);
+        if (httpResponseCode <= 0) {
+            Serial.println("Gagal setelah percobaan ulang");
+        }
     }
     http.end();
 }
 
 bool CekAkses(String fingerprintData, String rfidData) {
-    String url = String(SERVER_URL) + "?room=" + String(roomNumber) + "&uid=" + rfidData;
-
-    http.begin(url);
-    int httpResponseCode = http.GET();
-
-    if (httpResponseCode > 0) {
-        String payload = http.getString();
-        Serial.print("Response from server: ");
-        Serial.println(payload);
-
-        http.end();
-
-        if (payload.indexOf("GRANTED") > 0) {
-            return true;
-        } else {
-            return false;
-        }
-    } else {
-        Serial.print("Request HTTP gagal: ");
-        Serial.println(httpResponseCode);
-        http.end();
+    if (fingerprintData.length() == 0 && rfidData.length() == 0) {
+        Serial.println("Error: Tidak ada credential untuk dicek");
         return false;
     }
+
+    // Buat URL dengan parameter yang sesuai
+    String url = String(SERVER_URL) + "?room=" + String(roomNumber);
+    
+    // Tambahkan parameter sesuai data yang tersedia
+    if (fingerprintData.length() > 0) {
+        url += "&fingerprint=" + fingerprintData;
+    }
+    if (rfidData.length() > 0) {
+        url += "&uid=" + rfidData;
+    }
+
+    http.begin(url);
+    http.setTimeout(5000); // 5 detik timeout
+    int maxRetries = 2;
+    int attempt = 0;
+    bool accessGranted = false;
+
+    while (attempt < maxRetries && !accessGranted) {
+        int httpResponseCode = http.GET();
+        
+        if (httpResponseCode > 0) {
+            String payload = http.getString();
+            
+            if (payload.length() > 0) {
+                StaticJsonDocument<200> responseDoc;
+                DeserializationError error = deserializeJson(responseDoc, payload);
+                
+                if (!error) {
+                    const char* status = responseDoc["status"];
+                    const char* message = responseDoc["message"];
+                    
+                    if (strcmp(status, "GRANTED") == 0) {
+                        Serial.print("Akses diterima: ");
+                        Serial.println(message);
+                        accessGranted = true;
+                    } else {
+                        Serial.print("Akses ditolak: ");
+                        Serial.println(message);
+                    }
+                } else {
+                    Serial.print("Response parsing failed: ");
+                    Serial.println(error.c_str());
+                }
+            }
+            break; // Exit if we got any valid response
+        } else {
+            Serial.print("Request HTTP gagal (attempt ");
+            Serial.print(attempt + 1);
+            Serial.print("): ");
+            Serial.println(httpResponseCode);
+            
+            if (attempt < maxRetries - 1) {
+                delay(1000); // Wait before retry
+            }
+        }
+        attempt++;
+    }
+
+    http.end();
+    return accessGranted;
 }
 
 bool TimeoutAkses(unsigned long startTime) {
@@ -139,7 +417,8 @@ void BukaPintu() {
     digitalWrite(SELENOID_PIN, HIGH); // Aktifkan solenoid untuk membuka pintu
 }
 
-/** @brief Fungsi untuk mendapatkan nilai RGB dari warna */
+/** @brief Fungsi untuk mendapatkan nilai RGB dari warna - Disabled due to hardware unavailability */
+/*
 const uint8_t* getRGBValues(LEDColor color) {
     static const uint8_t RED[3] = {255, 0, 0};
     static const uint8_t YELLOW[3] = {255, 255, 0};
@@ -169,4 +448,5 @@ void IndikatorLEDRGB(bool status, LEDColor color = LEDColor::WHITE) {
         digitalWrite(RGB_LED_B, LOW);
     }
 }
+*/
 

@@ -2,8 +2,7 @@
 #define PROJECT_CONTROL_H
 
 #if defined(PROJECT_HILMAN)
-#include "project-hilman.h"
-#include "control.cpp"
+#include "project-pintu_otomatis/customer-door.h"
 
 #elif defined(PROJECT_MERLIN)
 #include "project-merlin.h"
@@ -14,7 +13,13 @@
 #elif defined(PROJECT_FARREL)
 #include "project-farrel.h"
 
-#else
-#error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, or PROJECT_FARREL."
+// --- ADD YOUR PROJECT HERE ---
+#elif defined(PROJECT_FAZLA)
+#include "project-fazla.h" // Include your new project file
+// --- END OF YOUR ADDITION ---
 
-#endif
+#else
+#error "No project defined. Please define one of PROJECT_HILMAN, PROJECT_MERLIN, PROJECT_GALIH, PROJECT_FARREL, or PROJECT_FAZLA."
+
+#endif // This closes the #if defined(...) block
+#endif // This closes the #ifndef PROJECT_CONTROL_H
