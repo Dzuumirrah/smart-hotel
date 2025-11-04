@@ -1,4 +1,4 @@
-'''bash
+```bash
 .
 ├── platformio.ini
 ├── readme.md
@@ -44,4 +44,4 @@
     └── projectMerlin
         ├── project-merlin.cpp
         └── project-merlin.h
-'''
+```
