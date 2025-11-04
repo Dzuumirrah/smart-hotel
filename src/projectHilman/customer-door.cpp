@@ -1,11 +1,16 @@
 #include "customer-door.h"
 
 MFRC522 rfid(SS_PIN_RFID, RST_PIN_RFID);
-HTTPClient http;
 
 #if defined(ARDUINO_ARCH_ESP32)
-  SoftwareSerial fpSerial(FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
+    HTTPClient http;
 #endif
+
+// Global SoftwareSerial instances
+#if defined(ARDUINO_ARCH_AVR)
+    SoftwareSerial esp8266(ESP8266_RX_PIN, ESP8266_TX_PIN);
+#endif
+SoftwareSerial fpSerial(FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fpSerial);
 
 // Flag untuk menandakan apakah sudah terhubung ke WiFi
@@ -31,7 +36,8 @@ void setup_hilman() {
     #ifdef USE_WIFI_ESP8266
         SoftwareSerial WifiSerial(ESP8266_RX_PIN, ESP8266_TX_PIN);
     #endif
-    SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN);
+    // Initialize SPI for RFID - Arduino UNO uses fixed hardware pins
+    SPI.begin();  
     // Inisialisasi RFID
     rfid.PCD_Init();
 
@@ -167,6 +173,7 @@ void loop_hilman() {
 }
 
 
+#if defined(ARDUINO_ARCH_ESP32)
 bool cekKoneksiWiFi() {
     if (reconnected) {
         WiFi.setHostname("Dzuu-ESP32");
@@ -190,6 +197,65 @@ bool cekKoneksiWiFi() {
         return true;
     }   
 }
+
+#else // For Arduino UNO with ESP8266
+static bool esp8266_initialized = false;
+
+bool cekKoneksiWiFi() {
+    if (!esp8266_initialized) {
+        esp8266.begin(AT_BAUDRATE);
+        esp8266_initialized = true;
+        // Reset ESP8266
+        esp8266.println("AT+RST");
+        delay(1000);
+        while (esp8266.available()) {
+            esp8266.read(); // Clear buffer
+        }
+    }
+
+    if (reconnected) {
+        esp8266.println("AT");
+        delay(500);
+        if (!esp8266.find("OK")) return false;
+
+        esp8266.println("AT+CWMODE=1");
+        delay(500);
+        if (!esp8266.find("OK")) return false;
+
+        String cmd = "AT+CWJAP=\"";
+        cmd += WIFI_SSID;
+        cmd += "\",\"";
+        cmd += WIFI_PASSWORD;
+        cmd += "\"";
+        esp8266.println(cmd);
+        
+        unsigned long startTime = millis();
+        bool connectionSuccess = false;
+        while (millis() - startTime < AT_TIMEOUT && !connectionSuccess) {
+            if (esp8266.available()) {
+                String response = esp8266.readStringUntil('\n');
+                if (response.indexOf("OK") != -1) {
+                    reconnected = false;
+                    connectionSuccess = true;
+                } else if (response.indexOf("ERROR") != -1 || response.indexOf("FAIL") != -1) {
+                    break;
+                }
+            }
+            delay(100); // Prevent tight loop
+        }
+        return connectionSuccess;
+        
+        Serial.println("WiFi connection failed!");
+        reconnected = true;
+        return false;
+    }
+
+    // Check if still connected
+    esp8266.println("AT+CIPSTATUS");
+    delay(500);
+    return esp8266.find("STATUS:2") || esp8266.find("STATUS:3") || esp8266.find("STATUS:4");
+}
+#endif
 
 String BacaFingerprint() {
     uint8_t p = finger.getImage();
@@ -274,6 +340,7 @@ String BacaRFID() {
     return String(rfidBuffer);
 }
 
+#if defined(ARDUINO_ARCH_ESP32)
 void SimpanData(String fingerprintData, String rfidData) {
     if (fingerprintData.length() == 0 && rfidData.length() == 0) {
         Serial.println("Error: Tidak ada data untuk disimpan");
@@ -297,7 +364,7 @@ void SimpanData(String fingerprintData, String rfidData) {
     jsonDoc["fingerprint"] = fingerprintData;
     jsonDoc["uid"] = rfidData;
     jsonDoc["room"] = roomNumber;
-    jsonDoc["timestamp"] = millis(); // Add timestamp for request tracking
+    jsonDoc["timestamp"] = millis();
 
     String body;
     serializeJson(jsonDoc, body);
@@ -336,6 +403,105 @@ void SimpanData(String fingerprintData, String rfidData) {
     http.end();
 }
 
+#else
+void SimpanData(String fingerprintData, String rfidData) {
+    if (fingerprintData.length() == 0 && rfidData.length() == 0) {
+        Serial.println("Error: Tidak ada data untuk disimpan");
+        return;
+    }
+
+    StaticJsonDocument<200> jsonDoc;
+    jsonDoc["fingerprint"] = fingerprintData;
+    jsonDoc["uid"] = rfidData;
+    jsonDoc["room"] = roomNumber;
+    jsonDoc["timestamp"] = millis();
+
+    String body;
+    serializeJson(jsonDoc, body);
+
+    // Extract host and path from SERVER_URL
+    String url = SERVER_URL;
+    url.replace("https://", "");
+    int pathStart = url.indexOf('/');
+    String host = url.substring(0, pathStart);
+    String path = url.substring(pathStart);
+    path += "?room=" + String(roomNumber);
+    if (fingerprintData.length() > 0) {
+        path += "&fingerprint=" + fingerprintData;
+    }
+    if (rfidData.length() > 0) {
+        path += "&uid=" + rfidData;
+    }
+
+    // Connect to server
+    String cmd = "AT+CIPSTART=\"SSL\",\"";
+    cmd += host;
+    cmd += "\",443";
+    esp8266.println(cmd);
+    if (!esp8266.find("OK")) {
+        Serial.println("Connection failed");
+        return;
+    }
+
+    // Prepare HTTP POST request
+    String httpRequest = "POST ";
+    httpRequest += path;
+    httpRequest += " HTTP/1.1\r\n";
+    httpRequest += "Host: ";
+    httpRequest += host;
+    httpRequest += "\r\n";
+    httpRequest += "Content-Type: application/json\r\n";
+    httpRequest += "Content-Length: ";
+    httpRequest += body.length();
+    httpRequest += "\r\n\r\n";
+    httpRequest += body;
+
+    // Send request length
+    cmd = "AT+CIPSEND=";
+    cmd += httpRequest.length();
+    esp8266.println(cmd);
+    if (!esp8266.find(">")) {
+        Serial.println("Failed to send request");
+        return;
+    }
+
+    // Send request
+    esp8266.print(httpRequest);
+    if (esp8266.find("SEND OK")) {
+        String response = "";
+        unsigned long timeout = millis();
+        while (millis() - timeout < AT_TIMEOUT) {
+            if (esp8266.available()) {
+                response += (char)esp8266.read();
+            }
+        }
+
+        // Parse response if it contains JSON
+        if (response.indexOf("{") != -1) {
+            int jsonStart = response.indexOf("{");
+            int jsonEnd = response.lastIndexOf("}") + 1;
+            String jsonStr = response.substring(jsonStart, jsonEnd);
+
+            StaticJsonDocument<200> responseDoc;
+            DeserializationError error = deserializeJson(responseDoc, jsonStr);
+            
+            if (!error) {
+                const char* status = responseDoc["status"];
+                const char* message = responseDoc["message"];
+                Serial.print("Status: ");
+                Serial.println(status);
+                Serial.print("Message: ");
+                Serial.println(message);
+            }
+        }
+    }
+
+    // Close connection
+    esp8266.println("AT+CIPCLOSE");
+}
+#endif
+
+#if defined(ARDUINO_ARCH_ESP32)
 bool CekAkses(String fingerprintData, String rfidData) {
     if (fingerprintData.length() == 0 && rfidData.length() == 0) {
         Serial.println("Error: Tidak ada credential untuk dicek");
@@ -403,6 +569,125 @@ bool CekAkses(String fingerprintData, String rfidData) {
     http.end();
     return accessGranted;
 }
+
+#else
+bool CekAkses(String fingerprintData, String rfidData) {
+    if (fingerprintData.length() == 0 && rfidData.length() == 0) {
+        Serial.println("Error: Tidak ada credential untuk dicek");
+        return false;
+    }
+
+    // Extract host and path from SERVER_URL
+    String url = SERVER_URL;
+    url.replace("https://", "");
+    int pathStart = url.indexOf('/');
+    String host = url.substring(0, pathStart);
+    String path = url.substring(pathStart);
+    path += "?room=" + String(roomNumber);
+    if (fingerprintData.length() > 0) {
+        path += "&fingerprint=" + fingerprintData;
+    }
+    if (rfidData.length() > 0) {
+        path += "&uid=" + rfidData;
+    }
+
+    bool accessGranted = false;
+    int maxRetries = 2;
+    int attempt = 0;
+
+    while (attempt < maxRetries && !accessGranted) {
+        // Connect to server
+        String cmd = "AT+CIPSTART=\"SSL\",\"";
+        cmd += host;
+        cmd += "\",443";
+        esp8266.println(cmd);
+        if (!esp8266.find("OK")) {
+            Serial.println("Connection failed");
+            attempt++;
+            continue;
+        }
+
+        // Prepare HTTP GET request
+        String httpRequest = "GET ";
+        httpRequest += path;
+        httpRequest += " HTTP/1.1\r\n";
+        httpRequest += "Host: ";
+        httpRequest += host;
+        httpRequest += "\r\nConnection: close\r\n\r\n";
+
+        // Send request length
+        cmd = "AT+CIPSEND=";
+        cmd += httpRequest.length();
+        esp8266.println(cmd);
+        if (!esp8266.find(">")) {
+            Serial.println("Failed to send request");
+            attempt++;
+            continue;
+        }
+
+        // Send request
+        esp8266.print(httpRequest);
+        if (esp8266.find("SEND OK")) {
+            String response = "";
+            unsigned long timeout = millis();
+            bool endOfResponse = false;
+            
+            while (millis() - timeout < AT_TIMEOUT && !endOfResponse) {
+                if (esp8266.available()) {
+                    char c = esp8266.read();
+                    response += c;
+                    
+                    // Check for end of response
+                    if (response.length() > 4) {
+                        if (response.endsWith("\r\n\r\n")) {
+                            endOfResponse = true;
+                        }
+                    }
+                }
+                yield(); // Prevent watchdog reset
+            }
+
+            // Parse response if it contains JSON
+            if (response.indexOf("{") != -1) {
+                int jsonStart = response.indexOf("{");
+                int jsonEnd = response.lastIndexOf("}") + 1;
+                String jsonStr = response.substring(jsonStart, jsonEnd);
+
+                #if defined(ARDUINO_ARCH_ESP32)
+                    StaticJsonDocument<512> responseDoc;
+                #else
+                    StaticJsonDocument<128> responseDoc; // Smaller for Arduino UNO
+                #endif
+                DeserializationError error = deserializeJson(responseDoc, jsonStr);
+                
+                if (!error) {
+                    const char* status = responseDoc["status"];
+                    const char* message = responseDoc["message"];
+                    
+                    if (strcmp(status, "GRANTED") == 0) {
+                        Serial.print("Akses diterima: ");
+                        Serial.println(message);
+                        accessGranted = true;
+                    } else {
+                        Serial.print("Akses ditolak: ");
+                        Serial.println(message);
+                    }
+                }
+            }
+        }
+
+        // Close connection
+        esp8266.println("AT+CIPCLOSE");
+        attempt++;
+        
+        if (!accessGranted && attempt < maxRetries) {
+            delay(1000); // Wait before retry
+        }
+    }
+
+    return accessGranted;
+}
+#endif
 
 bool TimeoutAkses(unsigned long startTime) {
     const unsigned long aksesTimeout = 5000; // 5 detik timeout
