@@ -1,5 +1,5 @@
 ```bash
-.
+smart-hotel
 ├── platformio.ini
 ├── readme.md
 └── src
