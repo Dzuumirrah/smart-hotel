@@ -2,8 +2,7 @@
 #define PROJECT_CONTROL_H
 
 #if defined(PROJECT_HILMAN)
-#include "project-hilman.h"
-#include "control.cpp"
+#include "projectHilman/customer-door.h"
 
 #elif defined(PROJECT_MERLIN)
 #include "projectMerlin/project-merlin.h"
